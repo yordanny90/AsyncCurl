@@ -7,6 +7,8 @@ if(!defined('ASYNCCURL_BASE_VERSION')) define('ASYNCCURL_BASE_VERSION', curl_ver
 /**
  * Clase para el consumo CURL
  * PHP: +7.4, +8.0
+ *
+ * Repositorio {@link https://github.com/yordanny90/AsyncCurl}
  */
 class Agent{
     const APP_VERSION='1.1';

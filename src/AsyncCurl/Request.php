@@ -2,6 +2,11 @@
 
 namespace AsyncCurl;
 
+/**
+ * Clase de la solicitud en proceso
+ *
+ * Repositorio {@link https://github.com/yordanny90/AsyncCurl}
+ */
 class Request{
     private $curl;
     /**

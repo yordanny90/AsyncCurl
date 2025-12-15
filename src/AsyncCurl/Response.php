@@ -7,6 +7,8 @@ namespace AsyncCurl;
  *
  * - {@see Response::$success} es la forma correcta de comprobar si el resultado es existoso
  * - Aunque el código de {@see Response::http_code()} sea exitoso, pero {@see Response::$aborted} puede ser TRUE
+ *
+ * Repositorio {@link https://github.com/yordanny90/AsyncCurl}
  */
 class Response{
     /**
