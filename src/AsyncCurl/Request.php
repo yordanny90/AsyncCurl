@@ -26,12 +26,17 @@ class Request{
     private $key=0;
     private $url;
     private $method;
+    /**
+     * @var array Opciones CURL finales enviadas en este request (equivalente a last_CURL_OPTIONS de API_helper)
+     */
+    private $opts=[];
 
-    public function __construct(Agent $manager, $curl, string $method, string $url, $stream=null){
+    public function __construct(Agent $manager, $curl, string $method, string $url, $stream=null, array $opts=[]){
         $this->man=$manager;
         $this->start=time();
         $this->method=$method;
         $this->url=$url;
+        $this->opts=$opts;
         $added=$this->man->addCurl($curl, $this);
         if(!$added) return;
         $this->key=$added;
@@ -79,6 +84,19 @@ class Request{
     }
 
     /**
+     * Atajo para el uso sincrono (un solo request, sin paralelismo real): espera hasta
+     * $timeout, detiene el request y devuelve la Response ya resuelta. Equivalente a
+     * encadenar {@see Request::wait()} + {@see Request::stop()} + {@see Request::response()},
+     * evitando el olvido de alguno de esos pasos.
+     * @param float $timeout Tiempo de espera máximo
+     * @return Response|null
+     */
+    public function resolve(float $timeout=10.0){
+        $this->wait($timeout);
+        return $this->stop()->response();
+    }
+
+    /**
      * Aborta/detiene el request actual si aun está en ejecución (Ver {@see Request::is_running()})
      * @return $this
      */
@@ -98,9 +116,17 @@ class Request{
         $errno=curl_errno($curl);
         $error=curl_error($curl);
         curl_close($curl);
-        $this->result=new Response($this->start, $this->method, $this->url, $info, $content, $this->headers, $errno, $error, $aborted);
+        $this->result=new Response($this->start, $this->method, $this->url, $info, $content, $this->headers, $errno, $error, $aborted, $this->opts);
         $this->headers='';
         return $this;
+    }
+
+    /**
+     * Opciones CURL finales enviadas en este request (debug/logging)
+     * @return array
+     */
+    public function getOptions(): array{
+        return $this->opts;
     }
 
     public function execution_time(){

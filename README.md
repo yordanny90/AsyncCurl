@@ -6,3 +6,7 @@
 Realiza múltiples solicitudes asíncronas y simultaneas desde PHP
 
 [Ir a ![GitHub CI][iconGit]][repo]
+
+# Documentación
+
+[Ir a la documentación completa](src/AsyncCurl/README.md)
