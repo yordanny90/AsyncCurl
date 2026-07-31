@@ -1,0 +1,23 @@
+{
+    "name": "yordanny90/async-curl",
+    "description": "Realiza múltiples solicitudes asíncronas y simultaneas desde PHP usando cURL",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Yordanny Mejías"
+        }
+    ],
+    "homepage": "https://github.com/yordanny90/AsyncCurl",
+    "keywords": ["curl", "async", "http", "request"],
+    "require": {
+        "php": ">=7.4",
+        "ext-curl": "*",
+        "ext-json": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "AsyncCurl\\": "src/AsyncCurl/"
+        }
+    }
+}
