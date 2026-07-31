@@ -11,7 +11,7 @@ if(!defined('ASYNCCURL_BASE_VERSION')) define('ASYNCCURL_BASE_VERSION', curl_ver
  * Repositorio {@link https://github.com/yordanny90/AsyncCurl}
  */
 class Agent{
-    const APP_VERSION='1.1';
+    const APP_VERSION='1.2.0';
     const APP_NAME='PHPEasyCurl';
     const APP_USERAGENT=('curl/'.ASYNCCURL_BASE_VERSION.' '.self::APP_NAME.'/'.self::APP_VERSION);
     const CT_JSON='application/json';
@@ -104,11 +104,13 @@ class Agent{
         CURLOPT_ENCODING=>'',
         CURLOPT_FOLLOWLOCATION=>true,
         CURLOPT_MAXREDIRS=>10,
+        CURLOPT_FAILONERROR=>false,
     ];
 
     private $cfg=[
         'toStream'=>false,
         'charset'=>'utf-8',
+        'contentType'=>null,
     ];
     private $security=[
         'user'=>'',
@@ -123,6 +125,10 @@ class Agent{
         $this->multi_handle??=curl_multi_init();
     }
 
+    public function __destruct(){
+        $this->close();
+    }
+
     /**
      * Agrega opciones de {@see curl_multi_setopt()}
      * @param $option
@@ -130,6 +136,7 @@ class Agent{
      * @return bool
      */
     public function multi_setopt(int $option, $value){
+        if(!$this->multi_handle) return false;
         return curl_multi_setopt($this->multi_handle, $option, $value);
     }
 
@@ -257,7 +264,7 @@ class Agent{
     }
 
     function &setUri(string $uri){
-        $this->addOption(CURLOPT_URL, $uri);
+        if($uri!=='') $this->addOption(CURLOPT_URL, $uri);
         return $this;
     }
 
@@ -266,12 +273,12 @@ class Agent{
     }
 
     function &setUser(?string $user){
-        $this->security['user']=strval($user);
+        if($user) $this->security['user']=$user;
         return $this;
     }
 
     function &setPassword(?string $pass){
-        $this->security['pass']=strval($pass);
+        if($pass) $this->security['pass']=$pass;
         return $this;
     }
 
@@ -346,6 +353,27 @@ class Agent{
         return $this;
     }
 
+    function get_content_type(){
+        return $this->cfg['contentType'];
+    }
+
+    /**
+     * Asigna el tipo de contenido por defecto para los request de este Agent, que se usa
+     * cuando {@see Agent::request()} recibe su parametro $contentType en NULL.
+     *
+     * Sin este default, un body enviado como string (JSON ya serializado, XML, ...) sin
+     * $contentType explicito viaja como {@see Agent::CT_OCTET_STREAM}
+     * @param string|null $contentType NULL restablece el comportamiento por defecto
+     * @return $this
+     * @see Agent::CT_JSON
+     * @see Agent::CT_FORM_URLENCODED
+     * @see Agent::CT_FORM_DATA
+     */
+    function &set_content_type(?string $contentType){
+        $this->cfg['contentType']=$contentType;
+        return $this;
+    }
+
     public static function headerFn(string &$headers=''){
         $headers='';
         $redir=0;
@@ -396,6 +424,7 @@ class Agent{
      * @return int[]|null Opciones para CURL
      */
     private function prepare_curl_options(string $method, ?string $url_endpoint, $paramGET=null, ?string $contentType=null, $data=null, ?array $addHeaders=null, ?array $addOpts=null){
+        $contentType??=$this->cfg['contentType'];
         if(is_array($data) || is_object($data)){
             $contentType=strtolower($contentType ?? self::CT_FORM_URLENCODED);
             if($contentType==self::CT_FORM_URLENCODED){
@@ -409,10 +438,14 @@ class Agent{
                 $data=self::toFields($data);
             }
         }
-        $contentType??=self::CT_OCTET_STREAM;
         $addHeaders??=[];
         $addOpts??=[];
-        $addHeaders['Content-Type']=$contentType.($this->cfg['charset']?'; charset='.$this->cfg['charset']:'');
+        // Sin body no se envia Content-Type: describiria un contenido inexistente.
+        // Si el servicio lo exige de todas formas, se pasa explicito en $addHeaders
+        if(!is_null($data)){
+            $contentType??=self::CT_OCTET_STREAM;
+            $addHeaders['Content-Type']=$contentType.($this->cfg['charset']?'; charset='.$this->cfg['charset']:'');
+        }
         if(is_string($data)){
             $addHeaders['Content-Length']=strlen($data);
         }
@@ -464,7 +497,13 @@ class Agent{
                 $opts[CURLOPT_USERPWD]=$this->security['user'].':'.$this->security['pass'];
             }
         }
-        if($this->cfg['toStream']){
+        if(isset($opts[CURLOPT_WRITEFUNCTION]) && is_callable($opts[CURLOPT_WRITEFUNCTION])){
+            // El llamador controla el volcado de la respuesta (procesamiento por chunk);
+            // no forzar RETURNTRANSFER/FILE encima de su CURLOPT_WRITEFUNCTION
+            $opts[CURLOPT_RETURNTRANSFER]=false;
+            unset($opts[CURLOPT_FILE]);
+        }
+        elseif($this->cfg['toStream']){
             $opts[CURLOPT_RETURNTRANSFER]=false;
             $opts[CURLOPT_FILE]=tmpfile();
             if(!$opts[CURLOPT_FILE]) return null;
@@ -495,8 +534,23 @@ class Agent{
         $method=$opts[CURLOPT_CUSTOMREQUEST];
         $url=$opts[CURLOPT_URL];
         curl_setopt_array($curl, $opts);
-        $res=new Request($this, $curl, $method, $url, $opts[CURLOPT_FILE] ?? null);
+        $res=new Request($this, $curl, $method, $url, $opts[CURLOPT_FILE] ?? null, $opts);
         return $res;
+    }
+
+    /**
+     * Atajo sincrono: dispara el request y espera su resultado de inmediato (equivalente
+     * al curl_exec() bloqueante de API_helper). Usar solo cuando no hay paralelismo real
+     * entre varios request de este Agent; si se necesita lanzar varios en paralelo, usar
+     * {@see Agent::request()} y hacer polling manual sobre cada Request.
+     *
+     * Ver parametros de {@see Agent::prepare_curl_options()}
+     * @param float $timeout Tiempo de espera maximo
+     * @return Response|null
+     */
+    function requestSync(string $method='GET', string $url_endpoint='', $paramGET=null, ?string $contentType=null, $data=null, ?array $addHeaders=null, ?array $addOpts=null, float $timeout=10.0){
+        $req=$this->request($method, $url_endpoint, $paramGET, $contentType, $data, $addHeaders, $addOpts);
+        return $req->resolve($timeout);
     }
 
     /**
@@ -593,6 +647,31 @@ class Agent{
             }
         }
         return $error_code;
+    }
+
+    /**
+     * Aborta las peticiones que sigan en vuelo y libera el pool de conexiones.
+     *
+     * Cada {@see Request} pendiente queda resuelto con una {@see Response} marcada como
+     * abortada ({@see Response::isAborted()}), igual que si se le hubiera hecho
+     * {@see Request::stop()}.
+     *
+     * Sirve para liberar los recursos de forma inmediata al terminar una corrida (por
+     * ejemplo, al final de un cron) sin depender del recolector de basura. Se llama tambien
+     * desde el destructor. Despues de cerrarlo, el Agent ya no atiende nuevas peticiones.
+     * @return void
+     */
+    public function close(): void{
+        if(!$this->multi_handle) return;
+        // Se itera una copia: stop() termina en removeCurl(), que modifica las listas
+        $pendientes=$this->list_request;
+        foreach($pendientes as $request){
+            if($request) $request->stop(false);
+        }
+        $this->list_curl=[];
+        $this->list_request=[];
+        curl_multi_close($this->multi_handle);
+        $this->multi_handle=null;
     }
 
 }

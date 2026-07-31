@@ -58,12 +58,17 @@ class Response{
      * @var string URL original
      */
     private $origin_url;
+    /**
+     * @var array Opciones CURL finales que se enviaron en el request (equivalente a last_CURL_OPTIONS de API_helper)
+     */
+    private $options;
 
-    public function __construct(int $start, string $method, string $url, array $info, $content, string $headers, int $errno, string $error, bool $aborted=false){
+    public function __construct(int $start, string $method, string $url, array $info, $content, string $headers, int $errno, string $error, bool $aborted=false, array $options=[]){
         $this->start=$start;
         $this->origin_method=$method;
         $this->origin_url=$url;
         $this->info=$info;
+        $this->options=$options;
         if(is_string($content)) $this->content=$content;
         if(is_resource($content)) $this->stream=$content;
         $this->headers=$headers;
@@ -73,8 +78,22 @@ class Response{
         $this->success=(!$this->aborted && $this->errno===0 && $this->statusGroup()=='Success');
     }
 
-    public function __call($name, $arguments){
-        return $this->header($name);
+    public function __destruct(){
+        $this->close();
+    }
+
+    /**
+     * Libera el stream temporal (si {@see \AsyncCurl\Agent::saveToStream()} estaba activo).
+     * Llamarlo explicitamente al terminar de leer el contenido en corridas con muchas
+     * respuestas retenidas en memoria (ej. batch/cron), para no acumular file descriptors
+     * abiertos hasta que el garbage collector destruya el objeto.
+     * @return void
+     */
+    public function close(): void{
+        if(is_resource($this->stream)){
+            fclose($this->stream);
+        }
+        $this->stream=null;
     }
 
     /**
@@ -103,6 +122,14 @@ class Response{
      */
     public function getInfo(): array{
         return $this->info;
+    }
+
+    /**
+     * Opciones CURL finales que se enviaron en este request (debug/logging/auditoria)
+     * @return array
+     */
+    public function getRequestOptions(): array{
+        return $this->options;
     }
 
     /**
@@ -262,7 +289,11 @@ class Response{
     }
 
     /**
-     * Obtiene el contenido de la respuesta exitosa
+     * Obtiene el contenido de la respuesta exitosa.
+     *
+     * Devuelve NULL si {@see Response::isSuccess()} es FALSE, incluso cuando el servicio
+     * envio un body con el detalle del error. Para leer ese body (log/diagnostico de un
+     * 4xx/5xx o de un request abortado) usar {@see Response::content_fail()}
      * @return string|null
      */
     function getContent(){
@@ -271,6 +302,9 @@ class Response{
     }
 
     /**
+     * Solo copia el contenido de una respuesta exitosa: devuelve NULL si
+     * {@see Response::isSuccess()} es FALSE. Para copiar el contenido de una respuesta
+     * fallida usar {@see Response::copyToStream_fail()}
      * @param resource|null $dest Si no es un resource, se creará un stream que apunta a un archivo temporal
      * @return resource|null
      */
@@ -280,7 +314,11 @@ class Response{
     }
 
     /**
-     * Guarda el resultado en un archivo y aplica el tiempo de modificación si se recibió
+     * Guarda el resultado en un archivo y aplica el tiempo de modificación si se recibió.
+     *
+     * Solo guarda una respuesta exitosa: devuelve NULL si {@see Response::isSuccess()} es
+     * FALSE. Para guardar el contenido de una respuesta fallida usar
+     * {@see Response::saveToFile_fail()}
      * @param string $filename
      * @return int|null
      */
@@ -290,6 +328,8 @@ class Response{
     }
 
     /**
+     * Contenido de la respuesta sin filtrar por exito: devuelve el body incluso si el
+     * request fallo o fue abortado. Es la via para loggear la respuesta de un 4xx/5xx
      * @return string|null
      */
     function content_fail(){
@@ -306,6 +346,8 @@ class Response{
     }
 
     /**
+     * Copia el contenido sin filtrar por exito: copia el body incluso si el request fallo
+     * o fue abortado
      * @param resource|null $dest
      * @return resource|null
      */
@@ -331,6 +373,8 @@ class Response{
     }
 
     /**
+     * Guarda el contenido en un archivo sin filtrar por exito: guarda el body incluso si
+     * el request fallo o fue abortado
      * @param string $filename
      * @return int|null
      */
@@ -366,21 +410,21 @@ class Response{
      */
     static function header_names(string $headers){
         if(preg_match_all('/(^|\n|\r)\s*([^\s:]+)[ ]*\:/i', $headers, $m)){
-            $m=array_unique(array_map('trim', $m[2]));
+            $m=array_values(array_unique(array_map('trim', $m[2])));
             return $m;
         }
         return null;
     }
 
     static function searchHeader(string $headers, $name){
-        if(preg_match('/(^|\n|\r)\s*'.preg_quote($name).'[ ]*\:([^\n\r]+)(\n|\r|$)/i', $headers, $m)){
+        if(preg_match('/(^|\n|\r)\s*'.preg_quote($name, '/').'[ ]*\:([^\n\r]+)(\n|\r|$)/i', $headers, $m)){
             return trim($m[2]);
         }
         return null;
     }
 
     static function searchHeader_multi(string $headers, $name){
-        if(preg_match_all('/(^|\n|\r)\s*'.preg_quote($name).'[ ]*\:([^\n\r]+)(\n|\r|$)/i', $headers, $m)){
+        if(preg_match_all('/(^|\n|\r)\s*'.preg_quote($name, '/').'[ ]*\:([^\n\r]+)(\n|\r|$)/i', $headers, $m)){
             return array_map('trim', $m[2]);
         }
         return null;
