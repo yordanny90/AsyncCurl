@@ -7,6 +7,12 @@ Realiza múltiples solicitudes asíncronas y simultaneas desde PHP
 
 [Ir a ![GitHub CI][iconGit]][repo]
 
+## Instalación
+
+```bash
+composer require yordanny90/async-curl
+```
+
 # Documentación
 
 [Ir a la documentación completa](src/AsyncCurl/README.md)
