@@ -1,7 +1,7 @@
 [repo]:  https://github.com/yordanny90/AsyncCurl
 [iconGit]: http://www.google.com/s2/favicons?domain=www.github.com
 
-# AsyncCurl
+# Documentación AsyncCurl
 
 Libreria de consumo HTTP sobre `curl_multi`. Permite tanto un request bloqueante simple como
 varias peticiones en paralelo con el mismo `Agent`.

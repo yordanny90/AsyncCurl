@@ -15,4 +15,4 @@ composer require yordanny90/async-curl
 
 # Documentación
 
-[Ir a la documentación completa](src/AsyncCurl/README.md)
+Ver documentación completa en [DOCUMENTACION.md](DOCUMENTACION.md)
