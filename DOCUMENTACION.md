@@ -226,6 +226,8 @@ $response->statusGroup();   // 'Success' | 'Client Error' | ...
 
 ```php
 $response->getContent();          // string|null — NULL si !isSuccess()
+$response->getContent(100);       // primeros 100 bytes
+$response->getContent(100, 50);   // 100 bytes a partir del offset 50
 $response->getJSON(true);         // NULL si el contenido no es JSON valido
 $response->copyToStream($dest);
 $response->saveToFile($ruta);
@@ -237,9 +239,15 @@ filtro:
 
 ```php
 $response->content_fail();          // body aunque haya fallado o se haya abortado
+$response->content_fail(100, 50);   // idem, con rango de bytes ($length, $offset)
 $response->copyToStream_fail($dest);
 $response->saveToFile_fail($ruta);
 ```
+
+`getContent()`/`content_fail()` admiten `$length` y `$offset` para leer solo un rango de
+bytes. Si el contenido esta respaldado por un stream temporal
+({@see `Agent::saveToStream()`}), el rango se lee directo del archivo sin cargar el contenido
+completo en memoria.
 
 `saveToFile()` aplica al archivo la fecha del header `Last-Modified` si viene.
 

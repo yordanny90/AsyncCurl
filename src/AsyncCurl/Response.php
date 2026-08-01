@@ -294,11 +294,13 @@ class Response{
      * Devuelve NULL si {@see Response::isSuccess()} es FALSE, incluso cuando el servicio
      * envio un body con el detalle del error. Para leer ese body (log/diagnostico de un
      * 4xx/5xx o de un request abortado) usar {@see Response::content_fail()}
+     * @param int|null $length Cantidad de bytes a leer. NULL devuelve el contenido completo
+     * @param int $offset Posición inicial (bytes)
      * @return string|null
      */
-    function getContent(){
+    function getContent(?int $length=null, int $offset=0){
         if(!$this->success) return null;
-        return $this->content_fail();
+        return $this->content_fail($length, $offset);
     }
 
     /**
@@ -330,15 +332,31 @@ class Response{
     /**
      * Contenido de la respuesta sin filtrar por exito: devuelve el body incluso si el
      * request fallo o fue abortado. Es la via para loggear la respuesta de un 4xx/5xx
+     *
+     * Con $length indicado, lee solo ese rango de bytes; si el contenido esta respaldado
+     * por un stream ({@see \AsyncCurl\Agent::saveToStream()}), evita cargarlo completo en memoria
+     * @param int|null $length Cantidad de bytes a leer. NULL devuelve el contenido completo
+     * @param int $offset Posición inicial (bytes)
      * @return string|null
      */
-    function content_fail(){
+    function content_fail(?int $length=null, int $offset=0){
         if(is_string($this->content)){
-            return $this->content;
+            if($length===null) return $this->content;
+            if($length<0) return null;
+            if($offset>=strlen($this->content)) return '';
+            return substr($this->content, $offset, $length);
         }
         if($this->stream){
-            fseek($this->stream, 0);
-            $content=stream_get_contents($this->stream);
+            if($length===null){
+                fseek($this->stream, 0);
+                $content=stream_get_contents($this->stream);
+                if(!is_string($content)) return null;
+                return $content;
+            }
+            if($length<0) return null;
+            if(fseek($this->stream, $offset)!==0) return null;
+            if($length===0) return '';
+            $content=fread($this->stream, $length);
             if(!is_string($content)) return null;
             return $content;
         }
