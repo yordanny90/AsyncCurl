@@ -120,6 +120,16 @@ $agent->multi_setopt(CURLMOPT_PIPELINING, 3);  // opciones del pool curl_multi
 `request()` acepta `$addHeaders` y `$addOpts` que aplican **solo a esa peticion** y no quedan
 guardados en el `Agent`.
 
+### Timeout de `requestSync()`
+
+```php
+$agent->set_sync_timeout(30);   // default: 10.0
+$agent->get_sync_timeout();
+```
+
+Si `requestSync()` recibe `$timeout=null` (su default), usa este valor del `Agent` en vez de
+un fijo `10.0`. Sigue pudiendose pasar un `$timeout` explicito por llamada, que tiene prioridad.
+
 ### Defaults globales (estaticos, afectan a todos los Agent)
 
 ```php
@@ -306,7 +316,8 @@ $agent->requestSync('GET', '/stream', null, null, null, null, [
 
 ## Notas
 
-- `$timeout` de `requestSync()` va **al final** de la firma, despues de `$addOpts`.
+- `$timeout` de `requestSync()` va **al final** de la firma, despues de `$addOpts`, es opcional
+  y por defecto `null` (usa `Agent::get_sync_timeout()`, `10.0` salvo que se configure otro).
 - `request()` devuelve por referencia (`function &request`); asignarlo normalmente
   (`$req=$agent->request(...)`) funciona sin cuidados especiales.
 - Un `Content-Type` calculado por la libreria sobrescribe el que venga en `$addHeaders`, salvo

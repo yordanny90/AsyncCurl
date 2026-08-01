@@ -111,6 +111,7 @@ class Agent{
         'toStream'=>false,
         'charset'=>'utf-8',
         'contentType'=>null,
+        'syncTimeout'=>10.0,
     ];
     private $security=[
         'user'=>'',
@@ -353,6 +354,20 @@ class Agent{
         return $this;
     }
 
+    function get_sync_timeout(){
+        return $this->cfg['syncTimeout'];
+    }
+
+    /**
+     * Timeout por defecto de {@see Agent::requestSync()} cuando su parametro $timeout es NULL
+     * @param float $timeout
+     * @return $this
+     */
+    function &set_sync_timeout(float $timeout){
+        $this->cfg['syncTimeout']=$timeout;
+        return $this;
+    }
+
     function get_content_type(){
         return $this->cfg['contentType'];
     }
@@ -545,10 +560,11 @@ class Agent{
      * {@see Agent::request()} y hacer polling manual sobre cada Request.
      *
      * Ver parametros de {@see Agent::prepare_curl_options()}
-     * @param float $timeout Tiempo de espera maximo
+     * @param float|null $timeout Tiempo de espera maximo. NULL usa {@see Agent::get_sync_timeout()}
      * @return Response|null
      */
-    function requestSync(string $method='GET', string $url_endpoint='', $paramGET=null, ?string $contentType=null, $data=null, ?array $addHeaders=null, ?array $addOpts=null, float $timeout=10.0){
+    function requestSync(string $method='GET', string $url_endpoint='', $paramGET=null, ?string $contentType=null, $data=null, ?array $addHeaders=null, ?array $addOpts=null, ?float $timeout=null){
+        $timeout??=$this->cfg['syncTimeout'];
         $req=$this->request($method, $url_endpoint, $paramGET, $contentType, $data, $addHeaders, $addOpts);
         return $req->resolve($timeout);
     }
