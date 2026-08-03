@@ -354,8 +354,11 @@ class Agent{
         return $this;
     }
 
+    /**
+     * @return float
+     */
     function get_sync_timeout(){
-        return $this->cfg['syncTimeout'];
+        return floatval($this->cfg['syncTimeout']);
     }
 
     /**
@@ -564,7 +567,7 @@ class Agent{
      * @return Response|null
      */
     function requestSync(string $method='GET', string $url_endpoint='', $paramGET=null, ?string $contentType=null, $data=null, ?array $addHeaders=null, ?array $addOpts=null, ?float $timeout=null){
-        $timeout??=$this->cfg['syncTimeout'];
+        $timeout??=$this->get_sync_timeout();
         $req=$this->request($method, $url_endpoint, $paramGET, $contentType, $data, $addHeaders, $addOpts);
         return $req->resolve($timeout);
     }
